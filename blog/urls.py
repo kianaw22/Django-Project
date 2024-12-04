@@ -1,6 +1,11 @@
-from django.urls import path
-from . import views
 
-urlpatterns = [
-    path('', views.post_list, name='post_list'),  # Root URL for the app
-]
+from drf_yasg.views import get_schema_view
+from drf_yasg import openapi
+from rest_framework import permissions
+from rest_framework.routers import DefaultRouter
+from .views import PostViewSet
+
+router = DefaultRouter()
+router.register(r'posts', PostViewSet, basename='post')
+
+urlpatterns = router.urls
