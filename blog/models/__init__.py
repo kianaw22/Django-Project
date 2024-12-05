@@ -1,3 +1,3 @@
 from .post import Post
-
-__all__ = ["Post"]
+from .costum_user import CustomUser
+__all__ = ["Post","CustomUser"]
