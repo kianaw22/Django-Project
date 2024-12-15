@@ -1,15 +1,17 @@
-from http.client import HTTPResponse
-from django.http import HttpResponse
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .models import Post
-from .serializers import PostSerializer
+from .serializers import PostSerializer,SignupSerializer
 from drf_spectacular.utils import extend_schema
-from django.shortcuts import render, redirect
-from django.contrib.auth import login
-from .forms import CustomUserSignupForm
+from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework import status
+from django.contrib.auth import get_user_model
 from .models import CustomUser
+
+CustomUser = get_user_model()
 
 class PostListCreateAPIView(APIView):
     """
@@ -66,67 +68,43 @@ class PostRetrieveUpdateDeleteAPIView(APIView):
         return Response({'message': 'Post deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
     
 
-def signup_student(request):
-    if request.method == "POST":
-        form = CustomUserSignupForm(request.POST)
-        if form.is_valid():
-            user = form.save(commit=False)
-            user.role = CustomUser.STUDENT  
-            user.save() 
-            login(request, user)  
-            return redirect('blog:student_dashboard')  
-    else:
-        form = CustomUserSignupForm()
 
-    return render(request, 'blog/signup.html', {'form': form})
-
-
-def signup_teacher(request):
-    if request.method == "POST":
-        form = CustomUserSignupForm(request.POST)
-        if form.is_valid():
-            user = form.save(commit=False)
-            user.role = CustomUser.TEACHER 
-            user.save()
-            login(request, user) 
-            return redirect('blog:teacher_dashboard') 
-    else:
-        form = CustomUserSignupForm()
-
-    return render(request, 'blog/signup.html', {'form': form})
-
-
-def signup_admin(request):
-    if request.method == "POST":
-        form = CustomUserSignupForm(request.POST)
-        if form.is_valid():
-            user = form.save(commit=False)
-            user.role = CustomUser.ADMIN  
-            user.save()
-            login(request, user)  
-            return redirect('blog:admin_dashboard')  
-    else:
-        form = CustomUserSignupForm()
-
-    return render(request, 'blog/signup.html', {'form': form})
-
-
-def teacher_dashboard(request):
-    if request.user.is_authenticated and request.user.role == CustomUser.TEACHER:
-        return render(request, 'blog/teacher_dashboard.html')
-    else:
-        return HttpResponse("You are not authorized to access this page.", status=403)
-
-
-def admin_dashboard(request):
-    if request.user.is_authenticated and request.user.role == CustomUser.ADMIN:
-        return render(request, 'blog/admin_dashboard.html')
-    else:
-        return HttpResponse("You are not authorized to access this page.", status=403)
+class SignupView(APIView):
+    """
+    API View to handle user signup and return JWT tokens.
+    """
+    @extend_schema(request=SignupSerializer)
+    def post(self, request, *args, **kwargs):
+        serializer = SignupSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.save()
+            refresh = RefreshToken.for_user(user)
+            
+            return Response({
+                "message": "User successfully created",
+                "refresh": str(refresh),
+                "access": str(refresh.access_token),
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "role": user.role,
+                }
+            }, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
+class DashboardAPIView(APIView):
+    """
+    API for user dashboards based on roles.
+    """
+    permission_classes = [IsAuthenticated]
 
-def student_dashboard(request):
-    if request.user.is_authenticated and request.user.role == CustomUser.STUDENT:
-        return render(request, 'blog/student_dashboard.html')  
-    else:
-        return HttpResponse("You are not authorized to access this page.", status=403)
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        if user.role == CustomUser.STUDENT:
+            return Response({'message': 'Welcome to the Student Dashboard!'}, status=status.HTTP_200_OK)
+        elif user.role == CustomUser.TEACHER:
+            return Response({'message': 'Welcome to the Teacher Dashboard!'}, status=status.HTTP_200_OK)
+        elif user.role == CustomUser.ADMIN:
+            return Response({'message': 'Welcome to the Admin Dashboard!'}, status=status.HTTP_200_OK)
+        return Response({'error': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
