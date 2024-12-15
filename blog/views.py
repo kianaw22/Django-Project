@@ -2,8 +2,10 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+
+from blog.permissions import IsAuthenticatedAdmin
 from .models import Post
-from .serializers import PostSerializer,SignupSerializer
+from .serializers import PostSerializer,SignupSerializer,ChangeRoleSerializer
 from drf_spectacular.utils import extend_schema
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -93,18 +95,31 @@ class SignupView(APIView):
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-class DashboardAPIView(APIView):
+class ChangeRoleView(APIView):
     """
-    API for user dashboards based on roles.
+    API View to allow admin to change another user's role.
     """
-    permission_classes = [IsAuthenticated]
+    
+    permission_classes = [IsAuthenticatedAdmin]
+    @extend_schema(request=ChangeRoleSerializer)
+    def post(self, request, *args, **kwargs):
+        print("Incoming Headers:", request.headers)
+        auth_header = request.headers.get('Authorization', 'Missing')
+        print("Authorization Header:", auth_header)
+        serializer = ChangeRoleSerializer(data=request.data)
+        if serializer.is_valid():
+            updated_user = serializer.update(serializer.instance, serializer.validated_data)
+            return Response(
+                {
+                    "message": "User role updated successfully.",
+                    "user": {
+                        "id": updated_user.id,
+                        "username": updated_user.username,
+                        "role": updated_user.role,
+                    }
+                },
+                status=status.HTTP_200_OK
+            )
+            
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)    
 
-    def get(self, request, *args, **kwargs):
-        user = request.user
-        if user.role == CustomUser.STUDENT:
-            return Response({'message': 'Welcome to the Student Dashboard!'}, status=status.HTTP_200_OK)
-        elif user.role == CustomUser.TEACHER:
-            return Response({'message': 'Welcome to the Teacher Dashboard!'}, status=status.HTTP_200_OK)
-        elif user.role == CustomUser.ADMIN:
-            return Response({'message': 'Welcome to the Admin Dashboard!'}, status=status.HTTP_200_OK)
-        return Response({'error': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
