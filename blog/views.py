@@ -12,6 +12,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import status
 from django.contrib.auth import get_user_model
 from .models import CustomUser
+from rest_framework.permissions import AllowAny
 
 CustomUser = get_user_model()
 
@@ -75,6 +76,7 @@ class SignupView(APIView):
     """
     API View to handle user signup and return JWT tokens.
     """
+    permission_classes = [AllowAny]
     @extend_schema(request=SignupSerializer)
     def post(self, request, *args, **kwargs):
         serializer = SignupSerializer(data=request.data)
